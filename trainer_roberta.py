@@ -53,7 +53,7 @@ tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 model = TFRobertaForSequenceClassification.from_pretrained("roberta-base", num_labels=num_labels)
 
 # Compile the model
-optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
+optimizer = tf.keras.optimizers.Adam()
 loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 metric = tf.keras.metrics.SparseCategoricalAccuracy("accuracy")
 model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
