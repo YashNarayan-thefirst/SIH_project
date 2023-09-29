@@ -7,12 +7,12 @@ import os
 from transformers import ElectraTokenizer, TFElectraForSequenceClassification
 
 # Define the maximum data size limit in bytes (10 MB)
-max_data_size_limit = 4 * 1024 * 1024  # 10 MB in bytes
+max_data_size_limit = 100 * 1024 * 1024  # 10 MB in bytes
 
 # Initialize variables to keep track of data size
 total_data_size = 0
 data_labels_list = []
-num_labels = 10**4  # Specify the number of labels
+num_labels = 10**5  # Specify the number of labels
 
 # Initialize NLTK stopwords
 nltk.download('stopwords')
@@ -93,7 +93,7 @@ with open('dataset.jsonl', 'r', encoding='utf-8') as jsonl_file:
             data_labels_train, data_labels_test = data_labels[:split_index], data_labels[split_index:]
 
             # Train the neural network model on the current data
-            model.fit(inputs_train, data_labels_train, epochs=20, batch_size=32, validation_data=(inputs_test, data_labels_test))
+            model.fit(inputs_train, data_labels_train, epochs=50, batch_size=32, validation_data=(inputs_test, data_labels_test))
 
             # Clear the processed data arrays
             input_data = []
@@ -124,7 +124,7 @@ if input_data:
     inputs_train_remaining = tokenizer(input_data, padding=True, truncation=True, return_tensors="tf", max_length=128)
 
     # Train the neural network model on the remaining data
-    model.fit(inputs_train_remaining, data_labels, epochs=20, batch_size=32)
+    model.fit(inputs_train_remaining, data_labels, epochs=50, batch_size=32)
 
     try:
         model.save_pretrained(os.path.join(os.getcwd(), "model"))
