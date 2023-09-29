@@ -1,11 +1,10 @@
 import json
 import nltk
 import tensorflow as tf
-from nltk.tokenize import word_tokenize
-from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 import numpy as np
 import os
+from transformers import ElectraTokenizer, TFElectraForSequenceClassification
 
 # Define the maximum data size limit in bytes (10 MB)
 max_data_size_limit = 4 * 1024 * 1024  # 10 MB in bytes
@@ -13,10 +12,7 @@ max_data_size_limit = 4 * 1024 * 1024  # 10 MB in bytes
 # Initialize variables to keep track of data size
 total_data_size = 0
 data_labels_list = []
-
-# Initialize NumPy arrays for storing input and output data
-input_data = np.array([])
-output_data = np.array([])
+num_labels = 10**4  # Specify the number of labels
 
 # Initialize NLTK stopwords
 nltk.download('stopwords')
@@ -34,23 +30,7 @@ def map_labels_to_numeric(label):
     return label_mapping[label]
 
 def preprocess_text(text):
-    # Tokenize, remove stopwords, and lemmatize the text
-    tokens = word_tokenize(text)
-    tokens = [word for word in tokens if word.lower() not in stop_words]
-    lemmatizer = nltk.stem.WordNetLemmatizer()
-    tokens = [lemmatizer.lemmatize(word) for word in tokens]
-    return ' '.join(tokens)
-
-def process_data(data):
-    # Vectorize the data using TF-IDF
-    vectorizer = TfidfVectorizer(
-        tokenizer=word_tokenize,
-        ngram_range=(1, 1),
-        max_features=5000  # Limit the number of features to 5000
-    )
-    tfidf_vectors = vectorizer.fit_transform(data)
-    
-    return tfidf_vectors.toarray(), vectorizer.get_feature_names_out()
+    return text
 
 def extract_labels_from_output(output_text):
     labels = set()  # Use a set to ensure unique labels
@@ -69,19 +49,19 @@ def extract_labels_from_output(output_text):
     return list(labels)
 
 # Create a neural network model
-model = tf.keras.Sequential([
-    tf.keras.layers.Input(shape=(5000,)),  # Define the input shape (will be updated dynamically)
-    tf.keras.layers.Dense(128, activation='relu'),  # Add a dense layer with ReLU activation
-    tf.keras.layers.Dropout(0.5),  # Add dropout for regularization
-    tf.keras.layers.Dense(64, activation='relu'),  # Add another dense layer with ReLU activation
-    tf.keras.layers.Dropout(0.5),  # Add dropout for regularization
-    tf.keras.layers.Dense(1, activation='sigmoid')  # Output layer with sigmoid activation
-])
+tokenizer = ElectraTokenizer.from_pretrained("google/electra-small-discriminator")
+model = TFElectraForSequenceClassification.from_pretrained("google/electra-small-discriminator", num_labels=num_labels)
 
 # Compile the model
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
+loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+metric = tf.keras.metrics.SparseCategoricalAccuracy("accuracy")
+model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
 
 # Read and process the dataset
+input_data = []
+output_data = []
+
 with open('dataset.jsonl', 'r', encoding='utf-8') as jsonl_file:
     for line in jsonl_file:
         json_data = json.loads(line)
@@ -94,21 +74,6 @@ with open('dataset.jsonl', 'r', encoding='utf-8') as jsonl_file:
         # Check if adding the current chunk exceeds the data size limit
         if total_data_size + chunk_size > max_data_size_limit:
             print("Data size limit exceeded. Preprocessing and training on current chunks...")
-
-            # Preprocess the input and output data
-            preprocessed_input = [preprocess_text(text) for text in input_data]
-            preprocessed_output = [preprocess_text(text) for text in output_data]
-
-            # Vectorize the data and get the number of features
-            tfidf_vectors, feature_names = process_data(preprocessed_input + preprocessed_output)
-
-            # Define the split ratio (e.g., 0.8 for 80% training, 0.2 for 20% testing)
-            split_ratio = 0.8
-            split_index = int(len(tfidf_vectors) * split_ratio)
-
-            # Split the data into training and testing sets
-            X_train_chunk, X_test_chunk = tfidf_vectors[:split_index], tfidf_vectors[split_index:]
-            
             # Extract labels from the current chunk and append to data_labels_list
             current_labels = extract_labels_from_output("\n".join(output_data))
             data_labels_list.extend([map_labels_to_numeric(label) for label in current_labels])
@@ -116,40 +81,35 @@ with open('dataset.jsonl', 'r', encoding='utf-8') as jsonl_file:
                 
             # Ensure data_labels is defined, even if there are no labels
             if len(data_labels) == 0:
-                data_labels = np.zeros(X_train_chunk.shape[0])
+                data_labels = np.zeros(len(input_data))
+
+            # Tokenize and pad the input data for training
+            inputs = tokenizer(input_data, padding=True, truncation=True, return_tensors="tf", max_length=128)
+
+            # Split the data into training and testing sets
+            split_ratio = 0.8
+            split_index = int(len(input_data) * split_ratio)
+            inputs_train, inputs_test = inputs[:split_index], inputs[split_index:]
+            data_labels_train, data_labels_test = data_labels[:split_index], data_labels[split_index:]
 
             # Train the neural network model on the current data
-            model.fit(X_train_chunk, data_labels, epochs=25, batch_size=32, validation_split=0.2)
+            model.fit(inputs_train, data_labels_train, epochs=20, batch_size=32, validation_data=(inputs_test, data_labels_test))
 
             # Clear the processed data arrays
-            input_data = np.array([])
-            output_data = np.array([])
+            input_data = []
+            output_data = []
             total_data_size = 0
 
             print("Cleared processed data arrays.")
 
         # Add the current data to the arrays
-        input_data = np.append(input_data, input_text)
-        output_data = np.append(output_data, output_text)
+        input_data.append(input_text)
+        output_data.append(output_text)
         total_data_size += chunk_size
 
 # Train the model on any remaining data if the limit is not exceeded
-if input_data.size > 0:
+if input_data:
     print("Training on remaining data...")
-
-    # Preprocess the input and output data for remaining data
-    preprocessed_input = [preprocess_text(text) for text in input_data]
-    preprocessed_output = [preprocess_text(text) for text in output_data]
-
-    # Vectorize the data and get the number of features for remaining data
-    tfidf_vectors, feature_names = process_data(preprocessed_input + preprocessed_output)
-
-    # Define the split ratio (e.g., 0.8 for 80% training, 0.2 for 20% testing)
-    split_ratio = 0.8
-    split_index = int(len(tfidf_vectors) * split_ratio)
-
-    # Split the data into training and testing sets
-    X_train_remaining, X_test_remaining = tfidf_vectors[:split_index], tfidf_vectors[split_index:]
 
     # Extract labels from the remaining data and append to data_labels_list
     remaining_labels = extract_labels_from_output("\n".join(output_data))
@@ -158,13 +118,17 @@ if input_data.size > 0:
 
     # Ensure data_labels is defined, even if there are no labels
     if len(data_labels) == 0:
-        data_labels = np.zeros(X_train_remaining.shape[0])
+        data_labels = np.zeros(len(input_data))
+
+    # Tokenize and pad the input data for remaining data
+    inputs_train_remaining = tokenizer(input_data, padding=True, truncation=True, return_tensors="tf", max_length=128)
 
     # Train the neural network model on the remaining data
-    model.fit(X_train_remaining, data_labels, epochs=10, batch_size=32)
+    model.fit(inputs_train_remaining, data_labels, epochs=20, batch_size=32)
 
     try:
-        model.save(os.path.join(os.getcwd(), "model.h5"))
-        print("Model saved as model.h5 in the current directory:", os.getcwd())
+        model.save_pretrained(os.path.join(os.getcwd(), "model"))
+        tokenizer.save_pretrained(os.path.join(os.getcwd(), "model"))
+        print("Model and tokenizer saved in the 'model' directory:", os.path.join(os.getcwd(), "model"))
     except Exception as e:
         print("An error occurred while saving the model:", str(e))
