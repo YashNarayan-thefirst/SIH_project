@@ -33,9 +33,7 @@ def map_labels_to_numeric(label):
         label_mapping[label] = current_label_id
         current_label_id += 1
     return label_mapping[label]
-def preprocess_text(text):
-    return text
-'''
+
 def preprocess_text(text):
     # Convert text to lowercase
     text = text.lower()
@@ -53,7 +51,7 @@ def preprocess_text(text):
     preprocessed_text = ' '.join(words)
     
     return preprocessed_text
-'''
+
 def extract_labels_from_output(output_text):
     labels = set()  # Use a set to ensure unique labels
     
