@@ -14,11 +14,11 @@ from collections import defaultdict
 mixed_precision.set_global_policy("mixed_float16")
 
 
-max_data_size_limit = 0.05 * 1024 * 1024 
+max_data_size_limit = 45 * 1024 * 1024 
 
 # Initialize variables to keep track of data size
 total_data_size = 0
-num_labels = 10**4  # Specify the number of labels
+num_labels = 2*10**5  # Specify the number of labels
 
 # Initialize NLTK stopwords
 nltk.download('stopwords')
