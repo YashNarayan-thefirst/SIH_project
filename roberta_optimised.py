@@ -8,12 +8,13 @@ from transformers import RobertaTokenizer, TFRobertaForSequenceClassification
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 from keras import mixed_precision
+import string
+from collections import defaultdict
 
-# Enable mixed precision training
 mixed_precision.set_global_policy("mixed_float16")
 
-# Define the maximum data size limit in bytes (100 MB)
-max_data_size_limit = 0.1 * 1024 * 1024  # 100 MB in bytes
+
+max_data_size_limit = 0.05 * 1024 * 1024 
 
 # Initialize variables to keep track of data size
 total_data_size = 0
@@ -21,8 +22,9 @@ num_labels = 10**4  # Specify the number of labels
 
 # Initialize NLTK stopwords
 nltk.download('stopwords')
+global stop_words
 stop_words = set(nltk.corpus.stopwords.words('english'))
-
+translator = str.maketrans('', '', string.punctuation)
 # Define the label mapping dictionary as a global variable
 label_mapping = {}
 current_label_id = 0
@@ -35,21 +37,15 @@ def map_labels_to_numeric(label):
     return label_mapping[label]
 
 def preprocess_text(text):
-    # Convert text to lowercase
+    # Convert text to lowercase and remove special characters, punctuation, and extra whitespace
     text = text.lower()
-    
-    # Remove special characters, punctuation, and extra whitespace
-    text = re.sub(r'[^\w\s]', '', text)
-    
+    text = text.translate(translator)
     # Tokenize the text into words
     words = text.split()
-    
     # Remove stopwords
     words = [word for word in words if word not in stop_words]
-    
     # Join the words back into a single string
     preprocessed_text = ' '.join(words)
-    
     return preprocessed_text
 
 def extract_labels_from_output(output_text):
@@ -116,25 +112,22 @@ if __name__ == '__main__':
         input_data.extend(result[0])
         data_labels_list.extend(result[1])
 
-    # Debug print statements
     print("Number of input samples:", len(input_data))
     print("Number of label samples:", len(data_labels_list))
 
     # Pad or truncate input sequences to a fixed length
     max_seq_length = 128
     x_train = tf.keras.preprocessing.sequence.pad_sequences(input_data, maxlen=max_seq_length, padding="post", truncating="post", dtype="int32")
-
+    
     # Ensure that x_train and y_train have the same number of samples
     min_samples = min(len(x_train), len(data_labels_list))
     x_train = x_train[:min_samples]
     y_train = data_labels_list[:min_samples]
-
-    # Debug print statements
+    y_train = np.array(y_train,dtype = np.int32)
     print("Shape of x_train:", x_train.shape)
-    print("Length of y_train:", len(y_train))
+    print("Length of y_train:", y_train.shape)
 
-    # Train the neural network model on the data
-    model.fit(x_train, y_train, epochs=50, batch_size=64)  # Increased batch size
+    model.fit(x_train, y_train, epochs=50, batch_size=64)  
 
     try:
         model.save_pretrained(os.path.join(os.getcwd(), "model"))
