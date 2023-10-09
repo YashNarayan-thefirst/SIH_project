@@ -22,7 +22,7 @@ def transcribe_audio(audio_file, model_type="DS2"):
     return recognized_text
 
 if __name__ == "__main__":
-    audio_file = "sample.wav"  # Replace with your audio file
+    audio_file = "sample.mp3"  # Replace with your audio file
     recognized_text = transcribe_audio(audio_file)
     print("Recognized Text:")
     print(recognized_text)
