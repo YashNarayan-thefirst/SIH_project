@@ -1,3 +1,4 @@
+#https://phoenixnap.com/kb/ffmpeg-windows
 import wave
 from pydub import AudioSegment
 def main():
