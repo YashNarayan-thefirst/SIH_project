@@ -1,44 +1,41 @@
-import torchaudio
-import wave
 import torch
-import speechbrain as sb
-from speechbrain.pretrained import DeepSpeech2
-from speechbrain.pretrained import EncoderClassification
-import pydub
-def wavtopcm(file):#takes wav file as argument. converts into output.pcm. open that for data
-    with wave.open(file) as file:
-        #print('File opened!')
-        sample_width = file.getsampwidth()
-        frame_rate = file.getframerate()
-        num_frames = file.getnframes()
+import torchaudio
+from pydub import AudioSegment
+from pydub.playback import play
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Tokenizer
 
-        audio_data = file.readframes(num_frames)
+# Convert MP3 to WAV
+def convert_mp3_to_wav(input_file, output_file):
+    audio = AudioSegment.from_mp3(input_file)
+    audio.export(output_file, format="wav")
 
-    output_pcm_file = "output.pcm"
-    with open(output_pcm_file, 'wb') as pcm_out:
-        pcm_out.write(audio_data)
+def transcribe_audio(audio_file, model_type="facebook/wav2vec2-base-960h"):
+    # Convert MP3 to WAV
+    wav_audio_file = "sample.wav"
+    convert_mp3_to_wav(audio_file, wav_audio_file)
 
+    # Load the pre-trained model and tokenizer
+    tokenizer = Wav2Vec2Tokenizer.from_pretrained(model_type)
+    model = Wav2Vec2ForCTC.from_pretrained(model_type)
 
-def transcribe_audio(audio_file, model_type="DS2"):
-    # Load the audio file
-    waveform, sample_rate = torchaudio.load(audio_file)
-    print(waveform,sample_rate)
-    # Initialize the model
-    if model_type == "DS2":
-        asr_model = DeepSpeech2.from_hparams(source="speechbrain/asr-crdnn-rnnlm-librispeech", savedir="tmpdir_asr")
-    #elif model_type == "EC":
-        asr_model = EncoderClassification.from_hparams(source="speechbrain/asr-transformer-transformerlm-librispeech", savedir="tmpdir_asr")
-    else:
-        raise ValueError("Invalid model_type. Use 'DS2' or 'EC'.")
+    # Load the audio file and perform inference
+    waveform, sample_rate = torchaudio.load(wav_audio_file)
+
+    # Tokenize and convert waveform to input format
+    input_values = tokenizer(waveform.squeeze().numpy(), return_tensors="pt").input_values
 
     # Perform speech recognition
-    with torch.no_grad():  # Disable gradient computation during inference
-        recognized_text = asr_model.decode_batch(waveform)
+    with torch.no_grad():
+        logits = model(input_values).logits
 
-    return recognized_text
+    # Decode the predicted transcription
+    predicted_ids = torch.argmax(logits, dim=-1)
+    transcription = tokenizer.batch_decode(predicted_ids)[0]
+
+    return transcription
 
 if __name__ == "__main__":
-    audio_file = "sample.mp3"  # Replace with your audio file
+    audio_file = "sample.mp3"  # Replace with your MP3 audio file
     recognized_text = transcribe_audio(audio_file)
     print("Recognized Text:")
     print(recognized_text)
