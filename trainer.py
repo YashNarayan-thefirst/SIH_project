@@ -1,22 +1,28 @@
-import json
-import nltk
 import tensorflow as tf
-import re
-import numpy as np
 import os
-from transformers import ElectraTokenizer, TFElectraForSequenceClassification
+import string
+import nltk
+import re
+import concurrent.futures
+import gpt_2_simple as gpt2
+from collections import defaultdict
+import json
 
-# Define the maximum data size limit in bytes (10 MB)
-max_data_size_limit = 100 * 1024 * 1024  # 10 MB in bytes
+# Set seed for reproducibility
+tf.random.set_seed(42)
 
-# Initialize variables to keep track of data size
-total_data_size = 0
-data_labels_list = []
-num_labels = 10**5  # Specify the number of labels
+# Parameters
+max_seq_length = 900
+num_labels = 10**5
+batch_size = 8
+epochs = 10
+target_data_size_mb = 0.01
 
 # Initialize NLTK stopwords
 nltk.download('stopwords')
+global stop_words
 stop_words = set(nltk.corpus.stopwords.words('english'))
+translator = str.maketrans('', '', string.punctuation)
 
 # Define the label mapping dictionary as a global variable
 label_mapping = {}
@@ -30,105 +36,97 @@ def map_labels_to_numeric(label):
     return label_mapping[label]
 
 def preprocess_text(text):
-    return text
+    # Convert text to lowercase and remove special characters, punctuation, and extra whitespace
+    text = text.lower()
+    text = text.translate(translator)
+    # Tokenize the text into words
+    words = text.split()
+    # Remove stopwords
+    words = [word for word in words if word not in stop_words]
+    # Join the words back into a single string
+    preprocessed_text = ' '.join(words)
+    return preprocessed_text
 
-def extract_labels_from_output(output_text):
-    labels = set()  # Use a set to ensure unique labels
-    
-    # Split the text into sentences based on line breaks
-    sentences = output_text.split('\n')
-    
-    # Iterate through the sentences and extract labels
-    for sentence in sentences:
-        # Use a regular expression to match lines starting with a bullet point
-        match = re.match(r'•\s*(.*)', sentence)
-        if match:
-            label = match.group(1).strip()  # Extract the label text
-            labels.add(label)  # Add the label to the set
-    
-    return list(labels)
+def process_json_lines(lines):
+    qa_pairs = []
 
-# Create a neural network model
-tokenizer = ElectraTokenizer.from_pretrained("google/electra-small-discriminator")
-model = TFElectraForSequenceClassification.from_pretrained("google/electra-small-discriminator", num_labels=num_labels)
+    for line in lines:
+        json_data = json.loads(line)  # Parse the line as a JSON object
+        conversations = json_data.get("conversations", [])
 
-# Compile the model
-optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
-loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-metric = tf.keras.metrics.SparseCategoricalAccuracy("accuracy")
-model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
+        # Extract human questions and GPT-2 responses
+        for i in range(1, len(conversations), 2):
+            if conversations[i - 1]["from"] == "human" and conversations[i]["from"] == "gpt":
+                question = conversations[i - 1]["value"]
+                answer = conversations[i]["value"]
+                qa_pairs.append((question, answer))
 
-# Read and process the dataset
-input_data = []
-output_data = []
+    return qa_pairs
 
-with open('dataset.jsonl', 'r', encoding='utf-8') as jsonl_file:
-    for line in jsonl_file:
-        json_data = json.loads(line)
-        input_text = json_data["input"]
-        output_text = json_data["output"]
+def load_or_train_gpt2():
+    # Check if the fine-tuned model exists
+    if not os.path.exists("fine_tuned_gpt2"):
+        print("Fine-tuned model does not exist. Training GPT-2...")
 
-        # Calculate the size of the current chunk in bytes
-        chunk_size = len(input_text.encode('utf-8')) + len(output_text.encode('utf-8'))
+        # Initialize and load the GPT-2 model
+        sess = gpt2.start_tf_sess()
+        gpt2.load_gpt2(sess, model_name='124M')
 
-        # Check if adding the current chunk exceeds the data size limit
-        if total_data_size + chunk_size > max_data_size_limit:
-            print("Data size limit exceeded. Preprocessing and training on current chunks...")
-            # Extract labels from the current chunk and append to data_labels_list
-            current_labels = extract_labels_from_output("\n".join(output_data))
-            data_labels_list.extend([map_labels_to_numeric(label) for label in current_labels])
-            data_labels = np.array(data_labels_list)
-                
-            # Ensure data_labels is defined, even if there are no labels
-            if len(data_labels) == 0:
-                data_labels = np.zeros(len(input_data))
+        # Fine-tune the GPT-2 model with your dataset
+        fine_tuned_model = gpt2.finetune(sess,
+                                        '124M',
+                                        dataset='Puffin.jsonl',
+                                        model_name='fine_tuned_124M',
+                                        steps=100, 
+                                        return_text=True)
 
-            # Tokenize and pad the input data for training
-            inputs = tokenizer(input_data, padding=True, truncation=True, return_tensors="tf", max_length=128)
+        # Save the fine-tuned model in TensorFlow's SavedModel format
+        gpt2.save_gpt2(sess, model_name='fine_tuned_gpt2', overwrite=True)
 
-            # Split the data into training and testing sets
-            split_ratio = 0.8
-            split_index = int(len(input_data) * split_ratio)
-            inputs_train, inputs_test = inputs[:split_index], inputs[split_index:]
-            data_labels_train, data_labels_test = data_labels[:split_index], data_labels[split_index:]
+        # Save the fine-tuned model as 'model.h5' using Keras
+        model = gpt2.get_model(sess)
+        model.save("model.h5")
 
-            # Train the neural network model on the current data
-            model.fit(inputs_train, data_labels_train, epochs=50, batch_size=32, validation_data=(inputs_test, data_labels_test))
+        print("GPT-2 training completed and fine-tuned model saved.")
+    else:
+        print("Fine-tuned model found. Loading fine-tuned GPT-2 model...")
+        sess = gpt2.start_tf_sess()
+        gpt2.load_gpt2(sess, model_name='fine_tuned_gpt2')
 
-            # Clear the processed data arrays
-            input_data = []
-            output_data = []
-            total_data_size = 0
+    return sess
 
-            print("Cleared processed data arrays.")
+if __name__ == '__main__':
+    input_data = []
 
-        # Add the current data to the arrays
-        input_data.append(input_text)
-        output_data.append(output_text)
-        total_data_size += chunk_size
+    # Process the text lines in the JSON file with a data size limit of 10 MB
+    target_data_size_bytes = target_data_size_mb * 1024 * 1024  # Convert to bytes
+    pool = concurrent.futures.ProcessPoolExecutor()  # Use ProcessPoolExecutor for parallel processing
+    futures = []
 
-# Train the model on any remaining data if the limit is not exceeded
-if input_data:
-    print("Training on remaining data...")
+    with open('Puffin.jsonl', 'r', encoding='utf-8') as jsonl_file:
+        current_data_size_bytes = 0
+        lines = []
 
-    # Extract labels from the remaining data and append to data_labels_list
-    remaining_labels = extract_labels_from_output("\n".join(output_data))
-    data_labels_list.extend([map_labels_to_numeric(label) for label in remaining_labels])
-    data_labels = np.array(data_labels_list)
+        for line in jsonl_file:
+            if current_data_size_bytes >= target_data_size_bytes:
+                break
 
-    # Ensure data_labels is defined, even if there are no labels
-    if len(data_labels) == 0:
-        data_labels = np.zeros(len(input_data))
+            lines.append(line)
+            current_data_size_bytes += len(line.encode('utf-8'))
 
-    # Tokenize and pad the input data for remaining data
-    inputs_train_remaining = tokenizer(input_data, padding=True, truncation=True, return_tensors="tf", max_length=128)
+            if len(lines) >= 100:  # Process lines in batches of 100 (adjust as needed)
+                future = pool.submit(process_json_lines, lines)
+                futures.append(future)
+                lines = []
 
-    # Train the neural network model on the remaining data
-    model.fit(inputs_train_remaining, data_labels, epochs=50, batch_size=32)
+        if len(lines) > 0:
+            future = pool.submit(process_json_lines, lines)
+            futures.append(future)
 
-    try:
-        model.save_pretrained(os.path.join(os.getcwd(), "model"))
-        tokenizer.save_pretrained(os.path.join(os.getcwd(), "model"))
-        print("Model and tokenizer saved in the 'model' directory:", os.path.join(os.getcwd(), "model"))
-    except Exception as e:
-        print("An error occurred while saving the model:", str(e))
+    for future in concurrent.futures.as_completed(futures):
+        input_data.extend(future.result())
+
+    print("Number of input samples:", len(input_data))
+
+    # Load or train the GPT-2 model
+    sess = load_or_train_gpt2()
