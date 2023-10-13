@@ -5,7 +5,6 @@ import nltk
 import re
 import concurrent.futures
 import gpt_2_simple as gpt2
-from collections import defaultdict
 import json
 
 # Set seed for reproducibility
@@ -16,7 +15,7 @@ max_seq_length = 900
 num_labels = 10**5
 batch_size = 8
 epochs = 10
-target_data_size_mb = 0.01
+target_data_size_mb = 0.001
 
 # Initialize NLTK stopwords
 nltk.download('stopwords')
@@ -67,21 +66,23 @@ def load_or_train_gpt2():
     # Check if the fine-tuned model exists
     if not os.path.exists("fine_tuned_gpt2"):
         print("Fine-tuned model does not exist. Training GPT-2...")
-
+        gpt2.download_gpt2(model_name='124M')
         # Initialize and load the GPT-2 model
         sess = gpt2.start_tf_sess()
         gpt2.load_gpt2(sess, model_name='124M')
 
         # Fine-tune the GPT-2 model with your dataset
         fine_tuned_model = gpt2.finetune(sess,
-                                        '124M',
                                         dataset='Puffin.jsonl',
-                                        model_name='fine_tuned_124M',
-                                        steps=100, 
-                                        return_text=True)
+                                        model_name='124M',
+                                        steps=10,
+                                         reuse = True
+                                         )
 
-        # Save the fine-tuned model in TensorFlow's SavedModel format
-        gpt2.save_gpt2(sess, model_name='fine_tuned_gpt2', overwrite=True)
+        # Save the fine-tuned model as a TensorFlow SavedModel
+        model_dir = os.path.join("fine_tuned_gpt2", "saved_model")
+        gpt2.copy_checkpoint_to_model_dir(fine_tuned_model, model_dir)
+        print("Fine-tuned model saved as TensorFlow SavedModel.")
 
         # Save the fine-tuned model as 'model.h5' using Keras
         model = gpt2.get_model(sess)
