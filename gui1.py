@@ -33,7 +33,7 @@ def submit():
 def sub():
     file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.mp3")])#audio file's path
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(rf"{os.getcwd()}\build\assets\frame0")
+ASSETS_PATH = OUTPUT_PATH / Path(rf"{os.getcwd()}\assets")
 def relative_to_assets(path: str) -> Path:return ASSETS_PATH / Path(path)
 window = Tk()
 window.geometry("1920x1080")
