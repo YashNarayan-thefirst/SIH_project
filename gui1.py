@@ -6,7 +6,7 @@ from PIL import Image,ImageTk
 fonts = lambda a:("Inter ExtraBold", a * -1,'bold')
 o=lambda x:x/1920
 p=lambda x:x/1080
-fr = lambda x: rf"{os.getcwd()}\build\assets\frame0\{x}"
+fr = lambda x: rf"{os.getcwd()}\assets\{x}"
 t=lambda s:9*s//10
 def dest():
     for i in ['sb','msgbox']:
