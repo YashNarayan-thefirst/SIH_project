@@ -5,6 +5,13 @@ from tkinter import filedialog
 from PIL import Image,ImageTk
 import pyaudio
 import wave
+import tensorflow as tf
+import gpt_2_simple as gpt2
+
+global sess
+sess = gpt2.start_tf_sess()
+gpt2.load_gpt2(sess, model_name = '124M')
+
 fonts = lambda a:("Inter ExtraBold", a * -1,'bold')
 o=lambda x:x/1920
 p=lambda x:x/1080
@@ -34,10 +41,16 @@ def play_audio(audio_file):
     stream.stop_stream()
     stream.close()
     p.terminate()
+
+def resp(inp):
+    res = gpt2.generate(sess,'124M',prefix = inp, return_as_list= True)[0]
+    print(res)
+    return res
+
 def submit():
     dest()
     inp = (entry_1.get(1.0, "end-1c"))
-    output='heloo'#output recieved from chatbot
+    output=resp(inp)#output recieved from chatbot
     msgbox = Text(window,wrap='word',font=fonts(24))
     msgbox.insert(END,output)
     msgbox.place(relx=o(1165),rely=p(330),relheight=p(300),relwidth=o(585))
