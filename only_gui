@@ -11,7 +11,7 @@ p=lambda x:x/1080
 fr = lambda x: rf"{os.getcwd()}\assets\{x}"
 t=lambda s:8*s//10
 def dest():
-    for i in ['sb','msgbox']:
+    for i in ['sb','msgbox','button3']:
         try:
             exec(f'{i}.destroy()')
         except:pass
@@ -40,11 +40,17 @@ def submit():
     output='heloo'#output recieved from chatbot
     msgbox = Text(window,wrap='word',font=fonts(24))
     msgbox.insert(END,output)
-    msgbox.place(relx=o(1165),rely=p(330),height=(250),width=(485))
+    msgbox.place(relx=o(1165),rely=p(330),height=(250),width=(450))
     sb = Scrollbar(window,orient= "vertical")
     sb.config(command=msgbox.yview)
-    sb.place(relx=o(1760),rely=p(330),height = (250))
-
+    sb.place(relx=o(1730),rely=p(330),height = (250))
+    button_image_3 = ImageTk.PhotoImage((Image.open(fr("button_3.png")).resize((t(135),t(91)))))
+    button3 = Button(image=button_image_3,borderwidth=0,highlightthickness=0,command=lambda: play_audio('sample.wav'),relief="flat")
+    button3.image = button_image_3
+    button3.place(relx=o(1780.0),rely=p(560.0),width=t(135.0),height=t(91.0))
+def filediag():
+    file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.mp3")])#user picked file path
+    play_audio(file_path)
 OUTPUT_PATH = Path(__file__).parent
 ASSETS_PATH = OUTPUT_PATH / Path(rf"{os.getcwd()}\assets")
 def relative_to_assets(path: str) -> Path:return ASSETS_PATH / Path(path)
@@ -61,8 +67,8 @@ entry_image_1= ImageTk.PhotoImage((Image.open(fr("entry_1.png")).resize((500,80)
 Label(window,image=entry_image_1,bd=0).place(relx=o(1150),rely=p(200),width=(500),height=(80))
 entry_1 = Text(bd=0,bg="#FFFFFF",fg="#000716",highlightthickness=0,wrap="word",font=fonts(21))
 entry_1.place(relx=o(1200.0),rely=p(220),relwidth=p(300),relheight=o(110.0))
-button_image_1 = ImageTk.PhotoImage((Image.open(fr("button_1.png")).resize((t(545),t(130)))))
-button1=Button(image=button_image_1,borderwidth=0,highlightthickness=0,command=lambda:play_audio('sample.wav'),relief="flat")
+button_image_1 = ImageTk.PhotoImage((Image.open(fr("button_4.png")).resize((t(545),t(130)))))
+button1=Button(image=button_image_1,borderwidth=0,highlightthickness=0,command=filediag,relief="flat")
 button1.place(relx=o(1175.0),rely=p(700.0),width=(t(545.0)),height=(t(130.0)))
 button_image_2 = ImageTk.PhotoImage((Image.open(fr("button_2.png")).resize((t(200),t(72)))))
 button_2 = Button(image=button_image_2,borderwidth=0,highlightthickness=0,command=lambda: window.destroy(),relief="flat")
