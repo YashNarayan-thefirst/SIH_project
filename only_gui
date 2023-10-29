@@ -9,7 +9,7 @@ fonts = lambda a:("Inter ExtraBold", a * -1,'bold')
 o=lambda x:x/1920
 p=lambda x:x/1080
 fr = lambda x: rf"{os.getcwd()}\assets\{x}"
-t=lambda s:9*s//10
+t=lambda s:8*s//10
 def dest():
     for i in ['sb','msgbox']:
         try:
@@ -64,11 +64,11 @@ entry_1.place(relx=o(1200.0),rely=p(220),relwidth=p(300),relheight=o(110.0))
 button_image_1 = ImageTk.PhotoImage((Image.open(fr("button_1.png")).resize((t(545),t(130)))))
 button1=Button(image=button_image_1,borderwidth=0,highlightthickness=0,command=lambda:play_audio('sample.wav'),relief="flat")
 button1.place(relx=o(1175.0),rely=p(700.0),width=(t(545.0)),height=(t(130.0)))
-button_image_2 = ImageTk.PhotoImage((Image.open(fr("button_2.png")).resize((200,72))))
+button_image_2 = ImageTk.PhotoImage((Image.open(fr("button_2.png")).resize((t(200),t(72)))))
 button_2 = Button(image=button_image_2,borderwidth=0,highlightthickness=0,command=lambda: window.destroy(),relief="flat")
-button_2.place(relx=o(1654.0),rely=p(979.0),width=(200.0),height=(70))
-sih_image=ImageTk.PhotoImage((Image.open(fr("sih.png")).resize((800,450))))
-Label(window,image=sih_image,bd=0).place(relx=o(30),rely=p(500),height=(450),width=(800))
+button_2.place(relx=o(1654.0),rely=p(979.0),width=t(200.0),height=t(70))
+sih_image=ImageTk.PhotoImage((Image.open(fr("sih.png")).resize((t(800),t(450)))))
+Label(window,image=sih_image,bd=0).place(relx=o(30),rely=p(500),height=t(450),width=t(800))
 window.resizable(False, False)
 window.attributes('-fullscreen',True)
 window.bind('<Escape>',lambda x:window.destroy())
