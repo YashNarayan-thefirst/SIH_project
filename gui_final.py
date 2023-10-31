@@ -99,7 +99,7 @@ window.configure(bg = "#FFFFFF")
 canvas = Canvas(window,bg = "#FFFFFF",height = 1080,width = 1920,bd = 0,highlightthickness = 0,relief = "ridge")
 canvas.place(x = 0, y = 0)
 canvas.create_rectangle(0.0,0.0,1920.0,1080.0,fill="#1D7A85",outline="")
-Label(window,text='PLEASE ENTER THE TEXT WHATEVER YOU WANT HERE YASH',bg='#1D7A85',font=fonts(35),wraplength=400).place(relx=o(260),rely=p(80))#change to heading
+Label(window,text='PROJECT BY YASH NARAYAN AND PRANAV NARANG',bg='#1D7A85',font=fonts(35),wraplength=400).place(relx=o(260),rely=p(80))#change to heading
 Label(window,text="Ask A Question",bg='#1D7A85',fg='#000000',font=fonts(45)).place(relx=o(1235),rely=p(65))
 entry_image_1 = PhotoImage(file=relative_to_assets("entry_1.png"))
 entry_image_1= ImageTk.PhotoImage((Image.open(fr("entry_1.png")).resize((500,80))))
